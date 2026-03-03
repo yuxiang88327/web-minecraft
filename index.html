@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Minecraft</title>
+    <meta name="description" content="基于网页的我的世界风格体素游戏">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="blocker">
+        <div id="instructions">
+            <h1>Web Minecraft</h1>
+            <p class="subtitle">基于网页的体素沙盒游戏</p>
+            <div class="controls-grid">
+                <div class="control-item"><kbd>W A S D</kbd><span>移动</span></div>
+                <div class="control-item"><kbd>空格</kbd><span>跳跃</span></div>
+                <div class="control-item"><kbd>鼠标</kbd><span>视角</span></div>
+                <div class="control-item"><kbd>Shift</kbd><span>加速</span></div>
+                <div class="control-item"><kbd>左键</kbd><span>破坏方块</span></div>
+                <div class="control-item"><kbd>右键</kbd><span>放置 / 打开工作台</span></div>
+                <div class="control-item"><kbd>1-9 / 0 / -</kbd><span>选择方块</span></div>
+                <div class="control-item"><kbd>滚轮</kbd><span>切换方块</span></div>
+                <div class="control-item"><kbd>E</kbd><span>装备面板</span></div>
+            </div>
+            <p class="click-hint">点击屏幕开始游戏</p>
+        </div>
+    </div>
+    <div id="crosshair">+</div>
+    <div id="debug-info"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="game.js"></script>
+</body>
+
+</html>
