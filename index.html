@@ -25,11 +25,16 @@
                 <div class="control-item"><kbd>滚轮</kbd><span>切换方块</span></div>
                 <div class="control-item"><kbd>E</kbd><span>装备面板</span></div>
             </div>
-            <p class="click-hint">点击屏幕开始游戏</p>
+            <div class="mp-join-row">
+                <input id="player-name" type="text" maxlength="16" placeholder="输入你的名字" autocomplete="off">
+                <button id="join-btn" type="button">进入多人世界</button>
+            </div>
+            <p id="join-hint" class="click-hint">先输入名字，再点击进入（无需注册登录）</p>
         </div>
     </div>
     <div id="crosshair">+</div>
     <div id="debug-info"></div>
+    <div id="multiplayer-hud">👥 在线 <span id="mp-online-count">1</span> | <span id="mp-status">未连接</span></div>
 
     <script type="importmap">
     {
