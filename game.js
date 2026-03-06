@@ -365,6 +365,8 @@ const TRANSPARENT_BLOCKS = new Set([BLOCK.AIR, BLOCK.WATER, BLOCK.GLASS, BLOCK.L
 const WORLD_SIZE = 64;
 const MAX_HEIGHT = 32;
 const REACH_DISTANCE = 6;
+const WORLD_SEED = 20260306;
+const MULTIPLAYER_TICK_RATE = 12;
 
 // Multi-face block types (need per-face materials like grass)
 const MULTI_FACE_BLOCKS = new Set([BLOCK.GRASS, BLOCK.WOOD_LOG, BLOCK.CRAFTING_TABLE]);
@@ -445,9 +447,9 @@ function matchRecipe(grid) {
 }
 
 class World {
-    constructor() {
+    constructor(seed = WORLD_SEED) {
         this.blocks = new Uint8Array(WORLD_SIZE * MAX_HEIGHT * WORLD_SIZE);
-        this.noise = new SimpleNoise(Math.random() * 100000 | 0);
+        this.noise = new SimpleNoise(seed);
         this.meshes = [];
     }
 
@@ -1063,6 +1065,125 @@ class Player {
 }
 
 // ============================================================
+// Multiplayer client
+// ============================================================
+class MultiplayerClient {
+    constructor(game) {
+        this.game = game;
+        this.clientId = null;
+        this.name = '';
+        this.players = new Map();
+        this.lastStateSend = 0;
+        this.lastPoll = 0;
+        this.lastSeq = 0;
+        this.connected = false;
+    }
+
+    async connect(name) {
+        this.name = name;
+        this.game.setMultiplayerStatus('正在连接服务器...');
+        try {
+            const resp = await fetch('/api/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: this.name }),
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) throw new Error(data.message || 'join failed');
+            this.clientId = data.id;
+            this.connected = true;
+            this.lastSeq = data.seq || 0;
+            this.game.setMultiplayerStatus(`在线模式：${this.name}`);
+            this.game.updateOnlineCount(data.onlineCount || 1);
+            this.updatePlayers(data.players || []);
+        } catch {
+            this.connected = false;
+            this.game.setMultiplayerStatus('连接失败，请先启动 node server.js');
+        }
+    }
+
+    async post(path, payload) {
+        const resp = await fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!resp.ok) throw new Error('request failed');
+        return resp.json();
+    }
+
+    async poll() {
+        if (!this.connected) return;
+        try {
+            const resp = await fetch(`/api/snapshot?since=${this.lastSeq}`);
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) return;
+            this.lastSeq = data.seq || this.lastSeq;
+            this.updatePlayers(data.players || []);
+            this.game.updateOnlineCount(data.onlineCount || 1);
+            for (const update of data.updates || []) {
+                if (update.playerId === this.clientId) continue;
+                this.game.applyRemoteBlockUpdate(update.x, update.y, update.z, update.block);
+            }
+        } catch {
+            this.connected = false;
+            this.game.setMultiplayerStatus('连接中断，请刷新重试');
+        }
+    }
+
+    update(dt) {
+        if (!this.connected || !this.clientId) return;
+        this.lastStateSend += dt;
+        this.lastPoll += dt;
+
+        if (this.lastStateSend >= 1 / MULTIPLAYER_TICK_RATE) {
+            this.lastStateSend = 0;
+            const p = this.game.player.position;
+            const dir = new THREE.Vector3();
+            this.game.camera.getWorldDirection(dir);
+            this.post('/api/state', {
+                id: this.clientId,
+                x: p.x,
+                y: p.y,
+                z: p.z,
+                yaw: Math.atan2(-dir.x, -dir.z),
+            }).catch(() => {});
+        }
+
+        if (this.lastPoll >= 0.2) {
+            this.lastPoll = 0;
+            this.poll();
+        }
+    }
+
+    updatePlayers(players) {
+        const seen = new Set();
+        for (const data of players) {
+            if (!data || data.id === this.clientId) continue;
+            seen.add(data.id);
+            let remote = this.players.get(data.id);
+            if (!remote) {
+                remote = this.game.createRemotePlayer(data.name || '玩家');
+                this.players.set(data.id, remote);
+            }
+            this.game.updateRemotePlayer(remote, data);
+        }
+
+        for (const [id, remote] of this.players.entries()) {
+            if (!seen.has(id)) {
+                this.game.removeRemotePlayer(remote);
+                this.players.delete(id);
+            }
+        }
+    }
+
+    sendBlockUpdate(x, y, z, block) {
+        if (!this.connected || !this.clientId) return;
+        this.post('/api/block-update', { id: this.clientId, x, y, z, block }).catch(() => {});
+    }
+}
+
+// ============================================================
 // Game — main application
 // ============================================================
 class Game {
@@ -1076,6 +1197,9 @@ class Game {
         this.equipmentOpen = false;
         this.craftingGrid = [[0,0,0],[0,0,0],[0,0,0]];
         this.selectedMaterial = 0; // Currently selected material for crafting
+        this.remotePlayersGroup = new THREE.Group();
+        this.remoteName = null;
+        this.multiplayer = new MultiplayerClient(this);
         this.init();
     }
 
@@ -1103,10 +1227,11 @@ class Game {
         this.setupSky();
 
         // World
-        this.world = new World();
+        this.world = new World(WORLD_SEED);
         this.world.generate();
         this.world.generateTrees();
         this.world.buildMesh(this.scene);
+        this.scene.add(this.remotePlayersGroup);
 
         // Player
         this.player = new Player(this.camera, this.world);
@@ -1128,6 +1253,9 @@ class Game {
 
         // Equipment UI
         this.setupEquipmentUI();
+
+        // Multiplayer UI
+        this.setupMultiplayerUI();
 
         // UI
         this.setupUI();
@@ -1307,6 +1435,7 @@ class Game {
                 const [bx, by, bz] = result.blockPos;
                 this.world.setBlock(bx, by, bz, BLOCK.AIR);
                 this.meshDirty = true;
+                this.multiplayer.sendBlockUpdate(bx, by, bz, BLOCK.AIR);
             } else if (e.button === 2) {
                 // Right click — check if clicking crafting table
                 const [bx, by, bz] = result.blockPos;
@@ -1335,6 +1464,7 @@ class Game {
                 const blockToPlace = PLACEABLE_BLOCKS[this.selectedBlockIdx];
                 this.world.setBlock(px, py, pz, blockToPlace);
                 this.meshDirty = true;
+                this.multiplayer.sendBlockUpdate(px, py, pz, blockToPlace);
             }
         });
 
@@ -1682,6 +1812,7 @@ class Game {
         const hotbar = document.getElementById('hotbar');
 
         blocker.addEventListener('click', () => {
+            if (!this.remoteName) return;
             this.controls.lock();
         });
 
@@ -1702,6 +1833,123 @@ class Game {
                 // Hide crosshair but keep debug/hotbar
                 crosshair.classList.remove('visible');
             }
+        });
+    }
+
+    setupMultiplayerUI() {
+        const blocker = document.getElementById('blocker');
+        const nameInput = document.getElementById('player-name');
+        const joinBtn = document.getElementById('join-btn');
+        const joinHint = document.getElementById('join-hint');
+
+        const submitJoin = async () => {
+            const rawName = nameInput.value.trim();
+            const safeName = (rawName || `玩家${Math.floor(Math.random() * 9999)}`).slice(0, 16);
+            if (!safeName) return;
+            joinBtn.disabled = true;
+            nameInput.disabled = true;
+            joinHint.textContent = '正在连接多人服务器...';
+            await this.multiplayer.connect(safeName);
+            if (!this.multiplayer.connected) {
+                joinBtn.disabled = false;
+                nameInput.disabled = false;
+                joinHint.textContent = '连接失败，请确认服务器已启动后重试';
+                return;
+            }
+            this.remoteName = safeName;
+            joinHint.textContent = `欢迎，${safeName}！点击屏幕开始游戏`;
+            blocker.classList.add('ready-to-play');
+        };
+
+        joinBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            submitJoin();
+        });
+
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitJoin();
+            }
+        });
+
+        blocker.addEventListener('click', () => {
+            if (!this.remoteName) {
+                joinHint.textContent = '请先输入名字并点击“进入多人世界”';
+            }
+        });
+    }
+
+    setMultiplayerStatus(text) {
+        const el = document.getElementById('mp-status');
+        if (el) el.textContent = text;
+    }
+
+    updateOnlineCount(count) {
+        const el = document.getElementById('mp-online-count');
+        if (el) el.textContent = `${count}`;
+    }
+
+    applyRemoteBlockUpdate(x, y, z, block) {
+        this.world.setBlock(x, y, z, block);
+        this.meshDirty = true;
+    }
+
+    createRemotePlayer(name) {
+        const group = new THREE.Group();
+
+        const body = new THREE.Mesh(
+            new THREE.BoxGeometry(0.6, 1.2, 0.4),
+            new THREE.MeshLambertMaterial({ color: 0x3b82f6 })
+        );
+        body.position.y = 0.6;
+
+        const head = new THREE.Mesh(
+            new THREE.BoxGeometry(0.45, 0.45, 0.45),
+            new THREE.MeshLambertMaterial({ color: 0xfde68a })
+        );
+        head.position.y = 1.45;
+
+        const label = this.makeNameSprite(name);
+        label.position.y = 2.0;
+
+        group.add(body, head, label);
+        this.remotePlayersGroup.add(group);
+        return { group, label };
+    }
+
+    makeNameSprite(name) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 28px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(2.6, 0.65, 1);
+        return sprite;
+    }
+
+    updateRemotePlayer(remote, data) {
+        remote.group.position.set(data.x, data.y, data.z);
+        remote.group.rotation.y = data.yaw || 0;
+    }
+
+    removeRemotePlayer(remote) {
+        this.remotePlayersGroup.remove(remote.group);
+        remote.group.traverse((obj) => {
+            if (obj.material && obj.material.map) obj.material.map.dispose();
+            if (obj.material) obj.material.dispose();
+            if (obj.geometry) obj.geometry.dispose();
         });
     }
 
@@ -1733,6 +1981,7 @@ class Game {
         const dt = this.clock.getDelta();
 
         this.player.update(dt, this.controls);
+        this.multiplayer.update(dt);
 
         if (this.meshDirty) {
             this.world.buildMesh(this.scene);
