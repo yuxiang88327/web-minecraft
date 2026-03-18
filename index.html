@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Web Minecraft</title>
     <meta name="description" content="基于网页的我的世界风格体素游戏">
     <link rel="stylesheet" href="style.css">
@@ -35,6 +35,20 @@
     <div id="crosshair">+</div>
     <div id="debug-info"></div>
     <div id="multiplayer-hud">👥 在线 <span id="mp-online-count">1</span> | <span id="mp-status">未连接</span></div>
+    <div id="touch-ui" aria-hidden="true">
+        <div id="touch-joystick" class="touch-panel">
+            <div class="touch-stick-base">
+                <div id="touch-stick-thumb"></div>
+            </div>
+        </div>
+        <div id="touch-look" class="touch-panel"></div>
+        <div id="touch-actions">
+            <button id="touch-break" type="button" class="touch-btn touch-btn-danger">拆</button>
+            <button id="touch-place" type="button" class="touch-btn touch-btn-primary">放</button>
+            <button id="touch-jump" type="button" class="touch-btn">跳</button>
+            <button id="touch-sprint" type="button" class="touch-btn">跑</button>
+        </div>
+    </div>
 
     <script type="importmap">
     {
