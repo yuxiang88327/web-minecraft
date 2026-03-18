@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
 // ============================================================
-// Texture Generator 闂?procedural canvas textures
+// Texture Generator — procedural canvas textures
 // ============================================================
 class TextureGen {
     static create(width, height, drawFn) {
@@ -343,7 +343,7 @@ class SimpleNoise {
 }
 
 // ============================================================
-// World 闂?voxel data & mesh generation
+// World — voxel data & mesh generation
 // ============================================================
 const BLOCK = {
     AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, SAND: 4, WATER: 5,
@@ -351,17 +351,10 @@ const BLOCK = {
     BRICK: 10, LEAVES: 11, CRAFTING_TABLE: 12
 };
 const BLOCK_NAMES = {
-    [BLOCK.GRASS]: 'Grass',
-    [BLOCK.DIRT]: 'Dirt',
-    [BLOCK.STONE]: 'Stone',
-    [BLOCK.SAND]: 'Sand',
-    [BLOCK.WOOD_LOG]: 'Log',
-    [BLOCK.WOOD_PLANK]: 'Planks',
-    [BLOCK.COBBLESTONE]: 'Cobblestone',
-    [BLOCK.GLASS]: 'Glass',
-    [BLOCK.BRICK]: 'Brick',
-    [BLOCK.LEAVES]: 'Leaves',
-    [BLOCK.CRAFTING_TABLE]: 'Crafting Table'
+    [BLOCK.GRASS]: '草方块', [BLOCK.DIRT]: '泥土', [BLOCK.STONE]: '石头',
+    [BLOCK.SAND]: '沙子', [BLOCK.WOOD_LOG]: '原木', [BLOCK.WOOD_PLANK]: '木板',
+    [BLOCK.COBBLESTONE]: '圆石', [BLOCK.GLASS]: '玻璃', [BLOCK.BRICK]: '砖块',
+    [BLOCK.LEAVES]: '树叶', [BLOCK.CRAFTING_TABLE]: '工作台'
 };
 const PLACEABLE_BLOCKS = [
     BLOCK.GRASS, BLOCK.DIRT, BLOCK.STONE, BLOCK.SAND,
@@ -374,9 +367,6 @@ const MAX_HEIGHT = 32;
 const REACH_DISTANCE = 6;
 const WORLD_SEED = 20260306;
 const MULTIPLAYER_TICK_RATE = 12;
-const TOUCH_JOYSTICK_RADIUS = 42;
-const TOUCH_LOOK_SENSITIVITY = 0.0032;
-const TOUCH_PITCH_LIMIT = Math.PI / 2 - 0.05;
 
 // Multi-face block types (need per-face materials like grass)
 const MULTI_FACE_BLOCKS = new Set([BLOCK.GRASS, BLOCK.WOOD_LOG, BLOCK.CRAFTING_TABLE]);
@@ -393,14 +383,14 @@ const ITEM = {
 };
 
 const ITEM_DEFS = {
-    [ITEM.WOOD_SWORD]: { name: 'Wood Sword', slot: 'hand', color: '#b8934a', icon: 'WS', stats: { attack: 3, defense: 0, speedBonus: 0 } },
-    [ITEM.STONE_SWORD]: { name: 'Stone Sword', slot: 'hand', color: '#808080', icon: 'SS', stats: { attack: 5, defense: 0, speedBonus: 0 } },
-    [ITEM.LEAF_HELMET]: { name: 'Leaf Helmet', slot: 'head', color: '#3a7a20', icon: 'LH', stats: { attack: 0, defense: 2, speedBonus: 0 } },
-    [ITEM.LEAF_CHESTPLATE]: { name: 'Leaf Chestplate', slot: 'body', color: '#3a7a20', icon: 'LC', stats: { attack: 0, defense: 3, speedBonus: 0 } },
-    [ITEM.LEAF_BOOTS]: { name: 'Leaf Boots', slot: 'feet', color: '#3a7a20', icon: 'LB', stats: { attack: 0, defense: 1, speedBonus: 0.10 } },
+    [ITEM.WOOD_SWORD]:      { name: '木剑',     slot: 'hand', color: '#b8934a', icon: '🗡️', stats: { attack: 3, defense: 0, speedBonus: 0 } },
+    [ITEM.STONE_SWORD]:     { name: '石剑',     slot: 'hand', color: '#808080', icon: '⚔️', stats: { attack: 5, defense: 0, speedBonus: 0 } },
+    [ITEM.LEAF_HELMET]:     { name: '树叶头盔', slot: 'head', color: '#3a7a20', icon: '🪖', stats: { attack: 0, defense: 2, speedBonus: 0 } },
+    [ITEM.LEAF_CHESTPLATE]: { name: '树叶胸甲', slot: 'body', color: '#3a7a20', icon: '🛡️', stats: { attack: 0, defense: 3, speedBonus: 0 } },
+    [ITEM.LEAF_BOOTS]:      { name: '树叶靴子', slot: 'feet', color: '#3a7a20', icon: '👢', stats: { attack: 0, defense: 1, speedBonus: 0.10 } },
 };
 
-const SLOT_NAMES = { head: 'Head', body: 'Body', feet: 'Feet', hand: 'Hand' };
+const SLOT_NAMES = { head: '头部', body: '身体', feet: '脚部', hand: '手持' };
 
 // ============================================================
 // Crafting Recipes
@@ -824,7 +814,7 @@ class World {
 }
 
 // ============================================================
-// Player 闂?movement, physics, collision
+// Player — movement, physics, collision
 // ============================================================
 class Player {
     constructor(camera, world) {
@@ -847,12 +837,6 @@ class Player {
 
         this.onGround = false;
         this.keys = {};
-        this.touchInput = {
-            moveX: 0,
-            moveY: 0,
-            sprint: false,
-            jump: false,
-        };
 
         // Equipment system
         this.equipment = { head: null, body: null, feet: null, hand: null };
@@ -873,10 +857,6 @@ class Player {
         document.addEventListener('keyup', (e) => {
             this.keys[e.code] = false;
         });
-    }
-
-    setTouchInput(nextInput) {
-        this.touchInput = nextInput;
     }
 
     addToInventory(itemId) {
@@ -934,12 +914,12 @@ class Player {
         return { attack: this.totalAttack, defense: this.totalDefense, speedBonus: Math.round(speedBonus * 100) };
     }
 
-    update(dt, controls, isActive) {
-        if (!isActive) return;
+    update(dt, controls) {
+        if (!controls.isLocked) return;
 
         dt = Math.min(dt, 0.1);
 
-        const sprint = this.keys['ShiftLeft'] || this.keys['ShiftRight'] || this.touchInput.sprint;
+        const sprint = this.keys['ShiftLeft'] || this.keys['ShiftRight'];
         const moveSpeed = sprint ? this.sprintSpeed : this.speed;
 
         const forward = new THREE.Vector3();
@@ -954,17 +934,13 @@ class Player {
         if (this.keys['KeyS'] || this.keys['ArrowDown']) moveDir.sub(forward);
         if (this.keys['KeyA'] || this.keys['ArrowLeft']) moveDir.sub(right);
         if (this.keys['KeyD'] || this.keys['ArrowRight']) moveDir.add(right);
-        if (this.touchInput.moveY > 0.01) moveDir.addScaledVector(forward, this.touchInput.moveY);
-        if (this.touchInput.moveY < -0.01) moveDir.addScaledVector(forward, this.touchInput.moveY);
-        if (this.touchInput.moveX > 0.01) moveDir.addScaledVector(right, this.touchInput.moveX);
-        if (this.touchInput.moveX < -0.01) moveDir.addScaledVector(right, this.touchInput.moveX);
 
         if (moveDir.lengthSq() > 0) moveDir.normalize();
 
         this.velocity.x = moveDir.x * moveSpeed;
         this.velocity.z = moveDir.z * moveSpeed;
 
-        if ((this.keys['Space'] || this.touchInput.jump) && this.onGround) {
+        if ((this.keys['Space']) && this.onGround) {
             this.velocity.y = this.jumpForce;
             this.onGround = false;
         }
@@ -1105,7 +1081,7 @@ class MultiplayerClient {
 
     async connect(name) {
         this.name = name;
-        this.game.setMultiplayerStatus('Connecting...');
+        this.game.setMultiplayerStatus('正在连接服务器...');
         try {
             const resp = await fetch('/api/join', {
                 method: 'POST',
@@ -1117,12 +1093,12 @@ class MultiplayerClient {
             this.clientId = data.id;
             this.connected = true;
             this.lastSeq = data.seq || 0;
-            this.game.setMultiplayerStatus(`Connected: ${this.name}`);
+            this.game.setMultiplayerStatus(`在线模式：${this.name}`);
             this.game.updateOnlineCount(data.onlineCount || 1);
             this.updatePlayers(data.players || []);
         } catch {
             this.connected = false;
-            this.game.setMultiplayerStatus('Connection failed. Start the server with node server.js and try again.');
+            this.game.setMultiplayerStatus('连接失败，请先启动 node server.js');
         }
     }
 
@@ -1151,10 +1127,9 @@ class MultiplayerClient {
             }
         } catch {
             this.connected = false;
-            this.game.setMultiplayerStatus('Connection lost. Refresh and reconnect.');
+            this.game.setMultiplayerStatus('连接中断，请刷新重试');
         }
     }
-
 
     update(dt) {
         if (!this.connected || !this.clientId) return;
@@ -1188,7 +1163,7 @@ class MultiplayerClient {
             seen.add(data.id);
             let remote = this.players.get(data.id);
             if (!remote) {
-                remote = this.game.createRemotePlayer(data.name || 'Remote Player');
+                remote = this.game.createRemotePlayer(data.name || '玩家');
                 this.players.set(data.id, remote);
             }
             this.game.updateRemotePlayer(remote, data);
@@ -1209,13 +1184,11 @@ class MultiplayerClient {
 }
 
 // ============================================================
-// Game 闂?main application
+// Game — main application
 // ============================================================
 class Game {
     constructor() {
         this.clock = new THREE.Clock();
-        this.isMobile = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
-        this.gameplayActive = false;
         this.selectedBlockIdx = 0;
         this.highlightMesh = null;
         this.targetBlock = null;
@@ -1226,18 +1199,6 @@ class Game {
         this.selectedMaterial = 0; // Currently selected material for crafting
         this.remotePlayersGroup = new THREE.Group();
         this.remoteName = null;
-        this.yaw = 0;
-        this.pitch = 0;
-        this.touchState = {
-            moveX: 0,
-            moveY: 0,
-            sprint: false,
-            jump: false,
-            joystickPointerId: null,
-            lookPointerId: null,
-            lookLastX: 0,
-            lookLastY: 0,
-        };
         this.multiplayer = new MultiplayerClient(this);
         this.init();
     }
@@ -1250,7 +1211,6 @@ class Game {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.setClearColor(0x87CEEB);
-        this.renderer.domElement.style.touchAction = 'none';
         document.body.appendChild(this.renderer.domElement);
 
         // Scene
@@ -1259,7 +1219,6 @@ class Game {
 
         // Camera
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-        this.camera.rotation.order = 'YXZ';
 
         // Lighting
         this.setupLighting();
@@ -1279,7 +1238,6 @@ class Game {
 
         // Controls
         this.controls = new PointerLockControls(this.camera, document.body);
-        this.syncYawPitchFromCamera();
 
         // Block highlight wireframe
         this.setupHighlight();
@@ -1298,9 +1256,6 @@ class Game {
 
         // Multiplayer UI
         this.setupMultiplayerUI();
-
-        // Mobile touch controls
-        this.setupTouchControls();
 
         // UI
         this.setupUI();
@@ -1380,55 +1335,6 @@ class Game {
         this.scene.add(this.highlightMesh);
     }
 
-    syncYawPitchFromCamera() {
-        this.yaw = this.camera.rotation.y;
-        this.pitch = this.camera.rotation.x;
-    }
-
-    applyCameraRotation() {
-        this.pitch = Math.max(-TOUCH_PITCH_LIMIT, Math.min(TOUCH_PITCH_LIMIT, this.pitch));
-        this.camera.rotation.x = this.pitch;
-        this.camera.rotation.y = this.yaw;
-        this.camera.rotation.z = 0;
-    }
-
-    rotateCameraBy(deltaX, deltaY) {
-        this.yaw -= deltaX * TOUCH_LOOK_SENSITIVITY;
-        this.pitch -= deltaY * TOUCH_LOOK_SENSITIVITY;
-        this.applyCameraRotation();
-    }
-
-    isGameplayActive() {
-        return this.isMobile ? this.gameplayActive : this.controls.isLocked;
-    }
-
-    setGameplayActive(active) {
-        this.gameplayActive = active;
-        document.body.classList.toggle('touch-mode', this.isMobile && active);
-
-        const blocker = document.getElementById('blocker');
-        const crosshair = document.getElementById('crosshair');
-        const debugInfo = document.getElementById('debug-info');
-        const hotbar = document.getElementById('hotbar');
-
-        if (active) {
-            blocker.classList.add('hidden');
-            crosshair.classList.add('visible');
-            debugInfo.classList.add('visible');
-            hotbar.classList.add('visible');
-            return;
-        }
-
-        if (!this.craftingOpen && !this.equipmentOpen) {
-            blocker.classList.remove('hidden');
-            crosshair.classList.remove('visible');
-            debugInfo.classList.remove('visible');
-            hotbar.classList.remove('visible');
-        } else {
-            crosshair.classList.remove('visible');
-        }
-    }
-
     setupHotbar() {
         const hotbar = document.createElement('div');
         hotbar.id = 'hotbar';
@@ -1455,7 +1361,6 @@ class Game {
             const slot = document.createElement('div');
             slot.className = 'hotbar-slot' + (i === 0 ? ' active' : '');
             slot.dataset.index = i;
-            slot.addEventListener('click', () => this.selectBlock(i));
 
             const canvas = document.createElement('canvas');
             canvas.width = 32;
@@ -1515,175 +1420,6 @@ class Game {
         slots.forEach((s, i) => s.classList.toggle('active', i === idx));
     }
 
-    getTargetedBlock() {
-        const dir = new THREE.Vector3();
-        this.camera.getWorldDirection(dir);
-        return this.world.raycast(this.camera.position, dir, REACH_DISTANCE);
-    }
-
-    performPrimaryAction() {
-        if (!this.isGameplayActive()) return;
-
-        const result = this.getTargetedBlock();
-        if (!result.hit) return;
-
-        const [bx, by, bz] = result.blockPos;
-        this.world.setBlock(bx, by, bz, BLOCK.AIR);
-        this.meshDirty = true;
-        this.multiplayer.sendBlockUpdate(bx, by, bz, BLOCK.AIR);
-    }
-
-    performSecondaryAction() {
-        if (!this.isGameplayActive()) return;
-
-        const result = this.getTargetedBlock();
-        if (!result.hit) return;
-
-        const [bx, by, bz] = result.blockPos;
-        if (result.block === BLOCK.CRAFTING_TABLE) {
-            this.openCrafting();
-            return;
-        }
-
-        const [nx, ny, nz] = result.normal;
-        const px = bx + nx;
-        const py = by + ny;
-        const pz = bz + nz;
-        const pp = this.player.position;
-        const pw = this.player.width;
-        const playerMinX = pp.x - pw;
-        const playerMaxX = pp.x + pw;
-        const playerMinZ = pp.z - pw;
-        const playerMaxZ = pp.z + pw;
-        const playerMinY = pp.y;
-        const playerMaxY = pp.y + this.player.height;
-
-        if (px + 1 > playerMinX &&
-            px < playerMaxX &&
-            py + 1 > playerMinY &&
-            py < playerMaxY &&
-            pz + 1 > playerMinZ &&
-            pz < playerMaxZ) {
-            return;
-        }
-
-        const blockToPlace = PLACEABLE_BLOCKS[this.selectedBlockIdx];
-        this.world.setBlock(px, py, pz, blockToPlace);
-        this.meshDirty = true;
-        this.multiplayer.sendBlockUpdate(px, py, pz, blockToPlace);
-    }
-
-    setupTouchControls() {
-        if (!this.isMobile) return;
-
-        const joystick = document.getElementById('touch-joystick');
-        const thumb = document.getElementById('touch-stick-thumb');
-        const lookPad = document.getElementById('touch-look');
-
-        const bindHoldButton = (id, key) => {
-            const el = document.getElementById(id);
-            if (!el) return;
-
-            const setPressed = (pressed) => {
-                this.touchState[key] = pressed;
-                el.classList.toggle('active', pressed);
-            };
-
-            el.addEventListener('pointerdown', (e) => {
-                e.preventDefault();
-                setPressed(true);
-            });
-            el.addEventListener('pointerup', () => setPressed(false));
-            el.addEventListener('pointercancel', () => setPressed(false));
-            el.addEventListener('pointerleave', () => setPressed(false));
-        };
-
-        const updateJoystick = (clientX, clientY) => {
-            const rect = joystick.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-            const dx = clientX - centerX;
-            const dy = clientY - centerY;
-            const distance = Math.min(TOUCH_JOYSTICK_RADIUS, Math.hypot(dx, dy));
-            const angle = Math.atan2(dy, dx);
-            const limitedX = Math.cos(angle) * distance;
-            const limitedY = Math.sin(angle) * distance;
-
-            thumb.style.transform = `translate(${limitedX}px, ${limitedY}px)`;
-            this.touchState.moveX = limitedX / TOUCH_JOYSTICK_RADIUS;
-            this.touchState.moveY = -(limitedY / TOUCH_JOYSTICK_RADIUS);
-        };
-
-        const resetJoystick = () => {
-            this.touchState.joystickPointerId = null;
-            this.touchState.moveX = 0;
-            this.touchState.moveY = 0;
-            thumb.style.transform = 'translate(0, 0)';
-        };
-
-        joystick.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            this.touchState.joystickPointerId = e.pointerId;
-            updateJoystick(e.clientX, e.clientY);
-        });
-        joystick.addEventListener('pointermove', (e) => {
-            if (this.touchState.joystickPointerId !== e.pointerId) return;
-            e.preventDefault();
-            updateJoystick(e.clientX, e.clientY);
-        });
-        joystick.addEventListener('pointerup', (e) => {
-            if (this.touchState.joystickPointerId !== e.pointerId) return;
-            resetJoystick();
-        });
-        joystick.addEventListener('pointercancel', (e) => {
-            if (this.touchState.joystickPointerId !== e.pointerId) return;
-            resetJoystick();
-        });
-
-        lookPad.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            this.touchState.lookPointerId = e.pointerId;
-            this.touchState.lookLastX = e.clientX;
-            this.touchState.lookLastY = e.clientY;
-        });
-        lookPad.addEventListener('pointermove', (e) => {
-            if (this.touchState.lookPointerId !== e.pointerId || !this.isGameplayActive()) return;
-            e.preventDefault();
-            const dx = e.clientX - this.touchState.lookLastX;
-            const dy = e.clientY - this.touchState.lookLastY;
-            this.touchState.lookLastX = e.clientX;
-            this.touchState.lookLastY = e.clientY;
-            this.rotateCameraBy(dx, dy);
-        });
-
-        const resetLook = (e) => {
-            if (this.touchState.lookPointerId !== e.pointerId) return;
-            this.touchState.lookPointerId = null;
-        };
-
-        lookPad.addEventListener('pointerup', resetLook);
-        lookPad.addEventListener('pointercancel', resetLook);
-
-        bindHoldButton('touch-jump', 'jump');
-        bindHoldButton('touch-sprint', 'sprint');
-
-        const breakBtn = document.getElementById('touch-break');
-        if (breakBtn) {
-            breakBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.performPrimaryAction();
-            });
-        }
-
-        const placeBtn = document.getElementById('touch-place');
-        if (placeBtn) {
-            placeBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.performSecondaryAction();
-            });
-        }
-    }
-
     setupBlockInteraction() {
         document.addEventListener('mousedown', (e) => {
             if (!this.controls.isLocked) return;
@@ -1695,13 +1431,13 @@ class Game {
             if (!result.hit) return;
 
             if (e.button === 0) {
-                // Left click 闂?destroy block
+                // Left click — destroy block
                 const [bx, by, bz] = result.blockPos;
                 this.world.setBlock(bx, by, bz, BLOCK.AIR);
                 this.meshDirty = true;
                 this.multiplayer.sendBlockUpdate(bx, by, bz, BLOCK.AIR);
             } else if (e.button === 2) {
-                // Right click 闂?check if clicking crafting table
+                // Right click — check if clicking crafting table
                 const [bx, by, bz] = result.blockPos;
                 if (result.block === BLOCK.CRAFTING_TABLE) {
                     this.openCrafting();
@@ -1744,21 +1480,21 @@ class Game {
         overlay.id = 'crafting-overlay';
         overlay.innerHTML = `
             <div id="crafting-window">
-                <div class="crafting-title">闂傚倸鍊搁崐宄懊归崶顒夋晪鐟滃秹锝炲┑瀣櫇闁稿矉濡囩粙蹇旂節閵忥絽鐓愰柛鏃€娲滅划濠氬冀椤撶喓鍘卞銈嗗姧缁插墽绮堥埀顒傜磼閻愵剙鍔ゆ繛纭风節瀵鎮㈢亸浣圭亖闂佸壊鐓堥崰妤呮倶閹惧墎纾藉ù锝嗗絻娴滅偓绻濋悽闈浶㈡繛璇х畵閹€斥槈閵忥紕鍘遍梺瑙勫閺呮稒淇婇崹顕呯唵鐟滃骸煤閻旂厧钃?/div>
+                <div class="crafting-title">工作台</div>
                 <div class="crafting-body">
                     <div class="crafting-grid-area">
                         <div class="crafting-grid" id="crafting-grid"></div>
                     </div>
-                    <div class="crafting-arrow">闂?/div>
+                    <div class="crafting-arrow">➡</div>
                     <div class="crafting-result-area">
                         <div class="craft-slot result-slot" id="crafting-result"></div>
-                        <button id="craft-btn" disabled>闂傚倸鍊搁崐鎼佸磹閹间礁纾瑰瀣捣閻棗銆掑锝呬壕濡ょ姷鍋涢ˇ鐢稿极閹剧粯鍋愰柛鎰级閻ゅ嫬鈹戞幊閸娧呭緤娴犲鐤い鏍仜绾惧鎮楅敐搴濈按闁衡偓娴犲鐓熸俊顖氭惈缁狙囨煙閸忕厧濮嶉柡?/button>
+                        <button id="craft-btn" disabled>合成</button>
                     </div>
                 </div>
                 <div class="material-palette" id="material-palette"></div>
                 <div class="crafting-footer">
-                    <span class="craft-hint">闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾剧懓顪冪€ｎ亜顒㈡い鎰矙閺屻劑鎮㈤崫鍕戙垻鐥幆褜鐓奸柡灞剧洴瀵挳濡搁妷褉鍋撻鍕厱闁靛鍠栨晶顔剧磼閻橆喖鍔滈柕鍥у瀵噣宕掑☉妯荤暚濠电偛鐡ㄧ划搴ㄥ磻閹捐绠為柕濞垮剻閻旇櫣鐭欓柛顭戝枛椤挸鈹戦悩鎰佸晱闁哥姵鐗犲畷鎰節濮橆剛鍔﹀銈嗗笂缁讹繝宕箛娑欑厱闁绘ê纾晶鐢告煙椤斿搫鍔滅紒杞扮矙瀹曨偊濡烽妷褋鍋婇梻鍌欑劍閹爼宕曞ú顏勭闁挎洖鍊搁弸渚€鏌涢妷顔煎闁绘挾鍠栭弻锟犲礃閵婏箑顦╅梺闈涙閸燁垶骞堥妸褎鍠嗛柛鏇炵仛閻や礁鈹戦纭峰姛缂侇噮鍨堕獮蹇涘川閺夋垵绐涙繝鐢靛Т閸婄懓鈻撳鈧缁樻媴閽樺妫堝銈庡亜椤﹂潧鐣烽弴銏犵闁兼亽鍎抽悾鎶芥⒒閸屾瑨鍏岀紒顕呭灦瀹曞綊鎮￠獮顒佺洴瀹曠喖顢橀悜鍡橆棥濠电姷鏁告慨鐢靛枈瀹ュ鍋傞柕澶涘缁♀偓闂傚倸鐗婄粙鎺楁晬瀹ュ棔绻嗛柟缁樺笚閹插摜绱掓潏銊ユ诞闁糕斁鍋撳銈嗗笒鐎氼剛绮堢€ｎ偁浜滈柡宥冨妿閵嗘帡鏌涘Ο鐓庝壕缂佺粯绻傞埢鎾诲垂椤旂晫浜堕梻浣告啞濮婄懓煤閻旂厧鏄ラ柍褜鍓氶妵鍕箳瀹ュ洩绐楀┑鐐茬墛椤洨妲愰幒妤婃晩闁兼亽鍎哄鍧楁⒑闂堟稒澶勯柛鏃€鐟╅悰顕€骞掑Δ鈧粻濠氭偣閸濆嫭鎯堢紒鐘卞嵆濮婅櫣鎷犻弻銉偓妤冪磼閻樿尙效鐎规洘娲熼弻鍡楊吋閸涱垳鏋冮梺鐟板悑閻ｎ亪宕濆畝鈧划濠氬冀椤撶喓鍘甸柡澶婄墦缁犳牕顬婇鈧弻锝夊箻鐎靛憡鍒涢梺鍝勬湰缁嬫挻绂掗敃鍌氱鐟滃酣宕抽鍓х＝濞达絿鎳撴慨鍫熸叏婵犲偆鐓奸柛鈹惧亾?| 闂傚倸鍊搁崐鎼佸磹閹间礁纾瑰瀣捣閻棗銆掑锝呬壕濡ょ姷鍋涢ˇ鐢稿极閹剧粯鍋愰柛鎰紦閻㈠姊绘担鐟邦嚋婵﹤顭峰鏌ヮ敃閵堝洣绗夐梺璇″瀻閳ь剟寮ㄦ禒瀣厽婵☆垰鎼痪褔鏌熼崗鐓庡闁哄矉绱曢埀顒婄岛閺呮繈宕濆澶嬬厪闁搞儜鍐句純濡ょ姷鍋為敃銏犵暦閿熺姵鍊烽柛蹇撴啞閸嬪懘姊婚崒娆戭槮闁硅绻濆畷婵婄疀濞戞锛涢梺鐟板⒔缁垶鍩涢幒鎳ㄥ綊鏁愰崼鐕佷哗闁汇埄鍨遍惄顖炲蓟閻旂厧浼犻柕澶樺枤閸旀悂姊婚崶褜妯€闁哄矉缍侀獮瀣晲閸♀晜顥夌紓鍌欒兌婵儳鈻嶉敐澶婄劦妞ゆ巻鍋撶紒鐘茬Ч瀹曟洟鏌嗗畵銉ユ处鐎佃偐鈧稒锚娴滄姊洪崫鍕窛闁哥姵鎸剧划缁樸偅閸愨晝鍘遍梺鏂ユ櫅閸熺姴螞閵婏负浜滈煫鍥ㄦ尵婢ф盯鏌涙繝鍌滃煟闁哄被鍔岄埥澶娢熸笟顖欑磻缂備胶鍋撻崕鎶藉Χ閹间礁钃熼柨鐔哄Т绾惧吋绻涢幋婵嗚埞闁告柨鐭傚铏圭磼濡纰嶉梺鍛婅壘椤戝鐛?/span>
-                    <button id="craft-close-btn">闂傚倸鍊搁崐鎼佸磹閹间礁纾归柣鎴ｅГ閸ゅ嫰鏌涢锝嗙５闁逞屽墾缁犳挸鐣锋總绋款潊闁炽儱鍟跨花銉╂⒒娴ｇ儤鍤€妞ゆ洦鍙冨畷鎴︽偄閾忛€涚瑝闂佽鍨庨埀顒勫绩娴犲鐓熸俊顖氱仢缁憋箓寮?/button>
+                    <span class="craft-hint">选择材料后点击网格放入 | 右键格子可清除</span>
+                    <button id="craft-close-btn">关闭</button>
                 </div>
             </div>
         `;
@@ -1916,11 +1652,11 @@ class Game {
         if (this._pendingResult.isItem) {
             const def = ITEM_DEFS[this._pendingResult.result];
             this.player.addToInventory(this._pendingResult.result);
-            this.showCraftToast(`Crafted ${def.name} and added it to inventory`);
+            this.showCraftToast(`合成成功：${def.name} → 背包`);
         } else {
             const name = BLOCK_NAMES[this._pendingResult.result];
             const count = this._pendingResult.count;
-            this.showCraftToast(`Crafted ${name} x${count}`);
+            this.showCraftToast(`合成成功：${name} x${count}`);
         }
 
         // Clear grid
@@ -1946,8 +1682,7 @@ class Game {
 
     openCrafting() {
         this.craftingOpen = true;
-        if (!this.isMobile) this.controls.unlock();
-        this.setGameplayActive(false);
+        this.controls.unlock();
         document.getElementById('crafting-overlay').classList.add('visible');
         this.craftingGrid = [[0,0,0],[0,0,0],[0,0,0]];
         this.updateCraftingDisplay();
@@ -1956,13 +1691,10 @@ class Game {
     closeCrafting() {
         this.craftingOpen = false;
         document.getElementById('crafting-overlay').classList.remove('visible');
+        // Re-lock after a short delay to avoid immediate re-trigger
         setTimeout(() => {
             if (!this.craftingOpen && !this.equipmentOpen) {
-                if (this.isMobile) {
-                    this.setGameplayActive(true);
-                } else {
-                    this.controls.lock();
-                }
+                this.controls.lock();
             }
         }, 100);
     }
@@ -1972,7 +1704,7 @@ class Game {
         overlay.id = 'equipment-overlay';
         overlay.innerHTML = `
             <div id="equipment-window">
-                <div class="equip-title">闂傚倸鍊搁崐鎼佸磹瀹勬噴褰掑炊瑜忛弳锕傛煟閵忋埄鐒剧紒鎰殘閳ь剙绠嶉崕鍗灻洪妸鈺傚剹闁糕剝銇滈埀顒佸笒椤繈鏁愰崨顒€顥氬┑掳鍊楁慨鐑藉磻濞戙垺鏅濋柕澶嗘櫅缁犳岸鏌￠崘銊у閹喖鏌ｆ惔顖滅У濞存粍绻堝畷鏉课熷Ч鍥︾盎闂侀潧绻嗗Σ鍛枔濠婂應鍋撶憴鍕闁哥姵鐗犻妴浣肝旀担鍝ョ獮闁诲函绲介悘姘端夐崼銉︹拻闁稿本鑹鹃埀顒勵棑濞嗐垹顫濋澶屽姺閻熸粌绻橀獮鎴﹀閵堝懎鑰垮┑鐐村灦椤洭藝椤撶偐鏀介柣妯肩帛濞懷囨煟濡も偓閿曨亪銆?/div>
+                <div class="equip-title">装备面板</div>
                 <div class="equip-body">
                     <div class="equip-slots">
                         <div class="equip-slot" data-slot="head"><div class="slot-label">${SLOT_NAMES.head}</div><div class="slot-icon" id="eslot-head"></div></div>
@@ -1981,22 +1713,22 @@ class Game {
                         <div class="equip-slot" data-slot="hand"><div class="slot-label">${SLOT_NAMES.hand}</div><div class="slot-icon" id="eslot-hand"></div></div>
                     </div>
                     <div class="equip-stats" id="equip-stats">
-                        <div class="stat-row"><span>闂?闂傚倸鍊搁崐鎼佸磹閹间礁纾圭€瑰嫭鍣磋ぐ鎺戠倞妞ゆ巻鍋撴潻婵嬫⒑闁偛鑻晶鎾煛鐏炲墽銆掗柍褜鍓ㄧ紞鍡涘磻閸涱厾鏆︾€光偓閸曨剛鍘靛銈嗘閸嬫劗绮旈搹鍏夊亾鐟欏嫭绀€闁绘牕鍚嬫穱濠囧箹娴ｈ倽銊ф喐韫囨稑围闂佸灝顑囩弧鈧┑鐐茬墕閻忔繂鈻嶅▎鎴犵＜闂婎偒鍘鹃惌娆撴煛娴ｇ鏆ｆい銏℃瀹曠厧鈹戞繝鍐╁暫?/span><span id="stat-attack">0</span></div>
-                        <div class="stat-row"><span>濠电姷鏁告慨鐑姐€傞挊澹╋綁宕ㄩ弶鎴狅紱闂佽宕樺▔娑氭閵堝悿褰掓偐瀹割喖鍓伴梺姹囧€ら崰妤呭Φ閸曨垰鍐€闁靛ě鍛帓闂?闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾惧綊鏌熼梻瀵割槮缁炬儳缍婇弻鐔兼⒒鐎靛壊妲梺姹囧€ら崰妤呭Φ閸曨垰鍐€闁靛ě鍛獥濠电偛鐡ㄧ划宀€绱炴繝鍥ц摕婵炴垯鍨圭粻娑㈡煕韫囨挻鎲搁柤铏そ濮婅櫣绱掑Ο铏圭懆闂佹寧娲忛崐婵嗭耿娓氣偓濮婅櫣绱掑Ο蹇ｄ簻铻ｅ┑鐘叉搐绾惧潡鐓崶銊︾缁炬儳銈搁弻?/span><span id="stat-defense">0</span></div>
-                        <div class="stat-row"><span>濠电姷鏁告慨鐑姐€傞挊澹╋綁宕ㄩ弶鎴狅紱闂佽宕樺▔娑氭閵堝悿褰掓偐瀹割喖鍓伴梺姹囧€ら崰妤呭Φ閸曨垰鍐€闁靛ě鍛姸闂?闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾剧懓顪冪€ｎ亜顒㈡い鎰矙閺屻劑鎮㈤崫鍕戙垻鐥幆褜鐓奸柡灞剧洴閸╁嫰宕橀浣诡潔缂傚倷鐒﹂崝鏍€冩繝鍥╁祦闁哄秲鍔嶇紞鍥煕閹炬鍟伴悡妤呮⒒娴ｄ警鐒炬い鎴濇楠炴劖銈ｉ崘銊х枀闂佸湱铏庨崰鏍矆鐎ｎ偁浜滈柟閭﹀枛閺嬫垿鏌ｈ箛鎾搭棦闁哄矉绲鹃幆鏃堝Χ鎼淬垻绉锋繝鐢靛仜瀵爼鈥﹂崶顒€绠查柕蹇嬪€曢柋鍥煏婢跺牆鍔ら柣锝嗘そ濮婃椽宕橀崣澶嬪創闂佺懓鍟垮ù椋庡垝閸儱绀冩い鏃傛櫕閸樺墽绱掗悙顒佺凡鐎规洦鍓熷畷銏ゅ川婵犲嫮顔?/span><span id="stat-speed">+0%</span></div>
+                        <div class="stat-row"><span>⚔ 攻击力</span><span id="stat-attack">0</span></div>
+                        <div class="stat-row"><span>🛡 防御力</span><span id="stat-defense">0</span></div>
+                        <div class="stat-row"><span>💨 速度加成</span><span id="stat-speed">+0%</span></div>
                     </div>
                 </div>
-                <div class="equip-inv-title">闂傚倸鍊搁崐鎼佸磹閹间礁纾归柣鎴ｅГ閸ゅ嫰鏌涢锝嗙闁稿被鍔庨幉鎼佸棘鐠恒劍娈惧銈嗙墱閸嬫盯鏌ㄩ妶鍡曠箚闁靛牆瀚ˇ锔界箾閸剛鍒版い顏勫暣婵″爼宕卞▎蹇ｆ椒濠电姰鍨奸～澶娒洪悢椋庢殾?/div>
+                <div class="equip-inv-title">背包</div>
                 <div class="equip-inventory" id="equip-inventory"></div>
                 <div class="equip-footer">
-                    <span class="equip-hint">闂傚倸鍊搁崐鎼佸磹閹间礁纾归柣鎴ｅГ閸ゅ嫰鏌涢幘鑼槮闁搞劍绻冮妵鍕冀椤愵澀绮剁紓浣插亾濠㈣泛顑勭换鍡涙煏閸繃鍣洪柛锝呮贡缁辨帡鎮╅棃娑掓瀰闂佸搫鐬奸崰鏍嵁閹达箑绠涢梻鍫熺⊕椤斿嫰姊绘担鍛婂暈濞ｅ洦妞介敐鐐村緞閹邦儵锕傛煕閺囥劌鐏犻柛妤勬珪娣囧﹪濡堕崒姘濠电偛鐡ㄧ划鎾剁不閺嵮屾綎闁惧繗顫夐崗婊堟煕濞戝崬鏋ょ憸鎶婂喚娓婚柕鍫濆暙婵″ジ鏌ｅΔ鈧敃锔惧垝鐎ｎ喖绠虫俊銈勭劍濞呭洭姊虹粙鎸庢拱缂佸鍨块幆鍌炲礋椤掑倻鐦堥梺闈涢獜缁插墽娑垫ィ鍐╃厸闁割偒鍋勬晶鎾煕閳瑰灝鐏€垫澘瀚伴獮鍥敇濞戞瑥顏烘繝鐢靛仩閹活亞绱為埀顒佺箾閸滃啰鎮奸柡渚囧枛閳藉濮€閿涘嫬甯鹃梻浣规偠閸庮垶宕濇惔鈭惰櫣鈧數纭堕崑鎾斥枔閸喗鐏嶉悷婊勬緲閸熸挳宕洪妷锕€绶為柟閭﹀墻濞煎﹪姊虹紒妯曟垿顢欓弽顓炵柈闁搞儺鍓氶悡鐔兼煟閺傛寧鎲搁柣顓烇功缁辨帞绱掑Ο鐑樿癁閻庤娲樺畝鎼佺嵁閹烘绠ｆい鎾跺枎閸忓﹪姊洪懡銈呪枅缂傚倹鑹鹃埢宥夋晲婢舵ɑ鏅╅梺鎼炲労閸撴岸鎮″▎鎾寸厾闁革富鍘奸。鑲╂喐閹跺﹤鎳愮壕濂稿级閸稑濡界紒鈧€ｎ兘鍋?闂?闂傚倸鍊搁崐鎼佸磹閹间礁纾归柣鎴ｅГ閸ゅ嫰鏌涢幘鑼槮闁搞劍绻冮妵鍕冀椤愵澀绮剁紓浣插亾濠㈣泛顑勭换鍡涙煏閸繃鍣洪柛锝呮贡缁辨帡鎮╅棃娑掓瀰闂佸搫鐬奸崰鏍嵁閹达箑绠涢梻鍫熺⊕椤斿嫰姊绘担鍛婂暈濞ｅ洦妞介敐鐐村緞閹邦儵锕傛煕閺囥劌鐏犵紒顐㈢Ч閺屾稓浠﹂崜褏鍙濇繝銏ｎ潐濞茬喎顫忓ú顏勪紶闁靛鍎查悗楣冩⒑閹肩偛濡兼繛灏栤偓鎰佸殨閻犲洦绁村Σ鍫熶繆椤栫偞鏁辨い顐㈢Ч濮婃椽宕ㄦ繝搴㈢暭闂佺顑嗙粙鎾诲焵椤掍礁鍠曠紒韫矙閸╃偤骞嬮敃鈧悞娲煕閹扳晛濡跨紒浣哄厴濮婅櫣鎷犻懠顒傤唹缂佺偓婢樼粔鍓佸垝濮橆厽缍囬柕濞у懐妲囬梻浣规偠閸庮垶宕濈仦瑙ｆ灁闁靛牆顦伴埛鎴︽煟閹惧啿顒㈤柛鐔哄仦閵囧嫰寮埀顒勬偋閺囷紕浜遍梻浣告啞濞诧箓宕归柆宥呯９闁汇垹鎲￠崑鈩冪箾閸℃绠版い蹇ｄ邯閹绠涢敐鍛缂備浇椴哥敮鐐垫閹烘嚦鐔兼惞闁稒鍋呯紓?/span>
-                    <button id="equip-close-btn">闂傚倸鍊搁崐鎼佸磹閹间礁纾归柣鎴ｅГ閸ゅ嫰鏌涢锝嗙５闁逞屽墾缁犳挸鐣锋總绋款潊闁炽儱鍟跨花銉╂⒒娴ｇ儤鍤€妞ゆ洦鍙冨畷鎴︽偄閾忛€涚瑝闂佽鍨庨埀顒勫绩娴犲鐓熸俊顖氱仢缁憋箓寮?/button>
+                    <span class="equip-hint">点击背包物品穿戴 · 点击装备槽卸下</span>
+                    <button id="equip-close-btn">关闭</button>
                 </div>
             </div>
         `;
         document.body.appendChild(overlay);
 
-        // Slot click 闂?unequip
+        // Slot click → unequip
         overlay.querySelectorAll('.equip-slot').forEach(el => {
             el.addEventListener('click', () => {
                 const slot = el.dataset.slot;
@@ -2012,8 +1744,7 @@ class Game {
 
     openEquipment() {
         this.equipmentOpen = true;
-        if (!this.isMobile) this.controls.unlock();
-        this.setGameplayActive(false);
+        this.controls.unlock();
         document.getElementById('equipment-overlay').classList.add('visible');
         this.updateEquipmentDisplay();
     }
@@ -2023,11 +1754,7 @@ class Game {
         document.getElementById('equipment-overlay').classList.remove('visible');
         setTimeout(() => {
             if (!this.craftingOpen && !this.equipmentOpen) {
-                if (this.isMobile) {
-                    this.setGameplayActive(true);
-                } else {
-                    this.controls.lock();
-                }
+                this.controls.lock();
             }
         }, 100);
     }
@@ -2059,7 +1786,7 @@ class Game {
         const invEl = document.getElementById('equip-inventory');
         invEl.innerHTML = '';
         if (this.player.inventory.length === 0) {
-            invEl.innerHTML = '<div class="inv-empty">Inventory is empty</div>';
+            invEl.innerHTML = '<div class="inv-empty">背包为空</div>';
             return;
         }
         this.player.inventory.forEach((itemId, idx) => {
@@ -2080,75 +1807,79 @@ class Game {
 
     setupUI() {
         const blocker = document.getElementById('blocker');
+        const crosshair = document.getElementById('crosshair');
+        const debugInfo = document.getElementById('debug-info');
+        const hotbar = document.getElementById('hotbar');
 
         blocker.addEventListener('click', () => {
             if (!this.remoteName) return;
-            if (this.isMobile) {
-                this.setGameplayActive(true);
-            } else {
-                this.controls.lock();
-            }
+            this.controls.lock();
         });
 
         this.controls.addEventListener('lock', () => {
-            this.syncYawPitchFromCamera();
-            this.setGameplayActive(true);
+            blocker.classList.add('hidden');
+            crosshair.classList.add('visible');
+            debugInfo.classList.add('visible');
+            hotbar.classList.add('visible');
         });
 
         this.controls.addEventListener('unlock', () => {
-            if (!this.isMobile) this.setGameplayActive(false);
+            if (!this.craftingOpen && !this.equipmentOpen) {
+                blocker.classList.remove('hidden');
+                crosshair.classList.remove('visible');
+                debugInfo.classList.remove('visible');
+                hotbar.classList.remove('visible');
+            } else {
+                // Hide crosshair but keep debug/hotbar
+                crosshair.classList.remove('visible');
+            }
         });
     }
 
-
     setupMultiplayerUI() {
-        const blocker = document.getElementById("blocker");
-        const nameInput = document.getElementById("player-name");
-        const joinBtn = document.getElementById("join-btn");
-        const joinHint = document.getElementById("join-hint");
+        const blocker = document.getElementById('blocker');
+        const nameInput = document.getElementById('player-name');
+        const joinBtn = document.getElementById('join-btn');
+        const joinHint = document.getElementById('join-hint');
 
         const submitJoin = async () => {
             const rawName = nameInput.value.trim();
-            const safeName = (rawName || `Player${Math.floor(Math.random() * 9999)}`).slice(0, 16);
+            const safeName = (rawName || `玩家${Math.floor(Math.random() * 9999)}`).slice(0, 16);
             if (!safeName) return;
-
             joinBtn.disabled = true;
             nameInput.disabled = true;
-            joinHint.textContent = "Connecting to multiplayer server...";
-
+            joinHint.textContent = '正在连接多人服务器...';
             await this.multiplayer.connect(safeName);
             if (!this.multiplayer.connected) {
                 joinBtn.disabled = false;
                 nameInput.disabled = false;
-                joinHint.textContent = "Connection failed. Confirm the server is running and try again.";
+                joinHint.textContent = '连接失败，请确认服务器已启动后重试';
                 return;
             }
-
             this.remoteName = safeName;
-            joinHint.textContent = this.isMobile
-                ? `Welcome, ${safeName}. Tap the screen to enter touch mode.`
-                : `Welcome, ${safeName}. Click to start playing.`;
-            blocker.classList.add("ready-to-play");
+            joinHint.textContent = `欢迎，${safeName}！点击屏幕开始游戏`;
+            blocker.classList.add('ready-to-play');
         };
 
-        joinBtn.addEventListener("click", (e) => {
+        joinBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             submitJoin();
         });
 
-        nameInput.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
                 e.preventDefault();
                 submitJoin();
             }
         });
 
-        blocker.addEventListener("click", () => {
+        blocker.addEventListener('click', () => {
             if (!this.remoteName) {
-                joinHint.textContent = "Enter a name and join the shared world first.";
+                joinHint.textContent = '请先输入名字并点击“进入多人世界”';
             }
         });
     }
+
     setMultiplayerStatus(text) {
         const el = document.getElementById('mp-status');
         if (el) el.textContent = text;
@@ -2249,8 +1980,7 @@ class Game {
 
         const dt = this.clock.getDelta();
 
-        this.player.setTouchInput(this.touchState);
-        this.player.update(dt, this.controls, this.isGameplayActive());
+        this.player.update(dt, this.controls);
         this.multiplayer.update(dt);
 
         if (this.meshDirty) {
@@ -2258,7 +1988,7 @@ class Game {
             this.meshDirty = false;
         }
 
-        if (this.isGameplayActive()) {
+        if (this.controls.isLocked) {
             this.updateHighlight();
         }
 
@@ -2267,11 +1997,11 @@ class Game {
         const debug = document.getElementById('debug-info');
         const stats = this.player.getStats();
         const equipLine = (stats.attack || stats.defense || stats.speedBonus)
-            ? `<br>ATK ${stats.attack} DEF ${stats.defense} SPD +${stats.speedBonus}%` : '';
+            ? `<br>⚔${stats.attack} 🛡${stats.defense} 💨+${stats.speedBonus}%` : '';
         debug.innerHTML =
             `XYZ: ${pos.x.toFixed(1)} / ${pos.y.toFixed(1)} / ${pos.z.toFixed(1)}<br>` +
             `FPS: ${(1 / Math.max(dt, 0.001)).toFixed(0)}<br>` +
-            `Held: ${blockName}` + equipLine;
+            `手持: ${blockName}` + equipLine;
 
         this.renderer.render(this.scene, this.camera);
     }
@@ -2280,7 +2010,427 @@ class Game {
 // ============================================================
 // Start
 // ============================================================
+const MOBILE_LOOK_SENSITIVITY = 0.0032;
+const MOBILE_PITCH_LIMIT = Math.PI / 2 - 0.05;
+const MOBILE_JOYSTICK_RADIUS = 42;
+
+const originalGameInit = Game.prototype.init;
+const originalGameSetupUI = Game.prototype.setupUI;
+const originalGameSetupHotbar = Game.prototype.setupHotbar;
+const originalGameOpenCrafting = Game.prototype.openCrafting;
+const originalGameCloseCrafting = Game.prototype.closeCrafting;
+const originalGameOpenEquipment = Game.prototype.openEquipment;
+const originalGameCloseEquipment = Game.prototype.closeEquipment;
+
+Player.prototype.setTouchInput = function (nextInput) {
+    this.touchInput = nextInput || { moveX: 0, moveY: 0, sprint: false, jump: false };
+};
+
+Player.prototype.update = function (dt, controls) {
+    const mobileActive = !!controls.mobileActive;
+    if (!controls.isLocked && !mobileActive) return;
+
+    const touchInput = this.touchInput || { moveX: 0, moveY: 0, sprint: false, jump: false };
+
+    dt = Math.min(dt, 0.1);
+
+    const sprint = this.keys['ShiftLeft'] || this.keys['ShiftRight'] || touchInput.sprint;
+    const moveSpeed = sprint ? this.sprintSpeed : this.speed;
+
+    const forward = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
+    right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+    const moveDir = new THREE.Vector3(0, 0, 0);
+    if (this.keys['KeyW'] || this.keys['ArrowUp']) moveDir.add(forward);
+    if (this.keys['KeyS'] || this.keys['ArrowDown']) moveDir.sub(forward);
+    if (this.keys['KeyA'] || this.keys['ArrowLeft']) moveDir.sub(right);
+    if (this.keys['KeyD'] || this.keys['ArrowRight']) moveDir.add(right);
+    if (Math.abs(touchInput.moveY) > 0.01) moveDir.addScaledVector(forward, touchInput.moveY);
+    if (Math.abs(touchInput.moveX) > 0.01) moveDir.addScaledVector(right, touchInput.moveX);
+
+    if (moveDir.lengthSq() > 0) moveDir.normalize();
+
+    this.velocity.x = moveDir.x * moveSpeed;
+    this.velocity.z = moveDir.z * moveSpeed;
+
+    if ((this.keys['Space'] || touchInput.jump) && this.onGround) {
+        this.velocity.y = this.jumpForce;
+        this.onGround = false;
+    }
+
+    this.velocity.y += this.gravity * dt;
+
+    this.moveWithCollision(dt);
+
+    this.camera.position.set(
+        this.position.x,
+        this.position.y + this.eyeHeight,
+        this.position.z
+    );
+};
+
+Game.prototype.isMobileMode = function () {
+    return this.isMobile === true;
+};
+
+Game.prototype.isGameplayActive = function () {
+    return this.isMobileMode() ? this.gameplayActive : this.controls.isLocked;
+};
+
+Game.prototype.syncYawPitchFromCamera = function () {
+    this.yaw = this.camera.rotation.y;
+    this.pitch = this.camera.rotation.x;
+};
+
+Game.prototype.applyCameraRotation = function () {
+    this.pitch = Math.max(-MOBILE_PITCH_LIMIT, Math.min(MOBILE_PITCH_LIMIT, this.pitch));
+    this.camera.rotation.order = 'YXZ';
+    this.camera.rotation.x = this.pitch;
+    this.camera.rotation.y = this.yaw;
+    this.camera.rotation.z = 0;
+};
+
+Game.prototype.rotateCameraBy = function (deltaX, deltaY) {
+    this.yaw -= deltaX * MOBILE_LOOK_SENSITIVITY;
+    this.pitch -= deltaY * MOBILE_LOOK_SENSITIVITY;
+    this.applyCameraRotation();
+};
+
+Game.prototype.setGameplayActive = function (active) {
+    this.gameplayActive = active;
+
+    const blocker = document.getElementById('blocker');
+    const crosshair = document.getElementById('crosshair');
+    const debugInfo = document.getElementById('debug-info');
+    const hotbar = document.getElementById('hotbar');
+
+    document.body.classList.toggle('touch-mode', this.isMobileMode() && active);
+
+    if (active) {
+        blocker.classList.add('hidden');
+        crosshair.classList.add('visible');
+        debugInfo.classList.add('visible');
+        hotbar.classList.add('visible');
+        return;
+    }
+
+    if (!this.craftingOpen && !this.equipmentOpen) {
+        blocker.classList.remove('hidden');
+        crosshair.classList.remove('visible');
+        debugInfo.classList.remove('visible');
+        hotbar.classList.remove('visible');
+    } else {
+        crosshair.classList.remove('visible');
+    }
+};
+
+Game.prototype.getTargetedBlock = function () {
+    const dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+    return this.world.raycast(this.camera.position, dir, REACH_DISTANCE);
+};
+
+Game.prototype.performPrimaryAction = function () {
+    if (!this.isGameplayActive()) return;
+    const result = this.getTargetedBlock();
+    if (!result.hit) return;
+
+    const [bx, by, bz] = result.blockPos;
+    this.world.setBlock(bx, by, bz, BLOCK.AIR);
+    this.meshDirty = true;
+    this.multiplayer.sendBlockUpdate(bx, by, bz, BLOCK.AIR);
+};
+
+Game.prototype.performSecondaryAction = function () {
+    if (!this.isGameplayActive()) return;
+    const result = this.getTargetedBlock();
+    if (!result.hit) return;
+
+    const [bx, by, bz] = result.blockPos;
+    if (result.block === BLOCK.CRAFTING_TABLE) {
+        this.openCrafting();
+        return;
+    }
+
+    const [nx, ny, nz] = result.normal;
+    const px = bx + nx;
+    const py = by + ny;
+    const pz = bz + nz;
+
+    const pp = this.player.position;
+    const pw = this.player.width;
+    const playerMinX = pp.x - pw;
+    const playerMaxX = pp.x + pw;
+    const playerMinZ = pp.z - pw;
+    const playerMaxZ = pp.z + pw;
+    const playerMinY = pp.y;
+    const playerMaxY = pp.y + this.player.height;
+
+    if (px + 1 > playerMinX && px < playerMaxX &&
+        py + 1 > playerMinY && py < playerMaxY &&
+        pz + 1 > playerMinZ && pz < playerMaxZ) {
+        return;
+    }
+
+    const blockToPlace = PLACEABLE_BLOCKS[this.selectedBlockIdx];
+    this.world.setBlock(px, py, pz, blockToPlace);
+    this.meshDirty = true;
+    this.multiplayer.sendBlockUpdate(px, py, pz, blockToPlace);
+};
+
+Game.prototype.setupTouchControls = function () {
+    if (!this.isMobileMode()) return;
+
+    const joystick = document.getElementById('touch-joystick');
+    const thumb = document.getElementById('touch-stick-thumb');
+    const lookPad = document.getElementById('touch-look');
+    const breakBtn = document.getElementById('touch-break');
+    const placeBtn = document.getElementById('touch-place');
+    const jumpBtn = document.getElementById('touch-jump');
+    const sprintBtn = document.getElementById('touch-sprint');
+
+    document.querySelectorAll('.hotbar-slot').forEach((slot, index) => {
+        slot.addEventListener('click', () => this.selectBlock(index));
+    });
+
+    const updateJoystick = (clientX, clientY) => {
+        const rect = joystick.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const dx = clientX - centerX;
+        const dy = clientY - centerY;
+        const distance = Math.min(MOBILE_JOYSTICK_RADIUS, Math.hypot(dx, dy));
+        const angle = Math.atan2(dy, dx);
+        const limitedX = Math.cos(angle) * distance;
+        const limitedY = Math.sin(angle) * distance;
+
+        thumb.style.transform = `translate(${limitedX}px, ${limitedY}px)`;
+        this.touchState.moveX = limitedX / MOBILE_JOYSTICK_RADIUS;
+        this.touchState.moveY = -(limitedY / MOBILE_JOYSTICK_RADIUS);
+    };
+
+    const resetJoystick = () => {
+        this.touchState.joystickPointerId = null;
+        this.touchState.moveX = 0;
+        this.touchState.moveY = 0;
+        thumb.style.transform = 'translate(0, 0)';
+    };
+
+    const bindHoldButton = (element, key) => {
+        const setPressed = (pressed) => {
+            this.touchState[key] = pressed;
+            element.classList.toggle('active', pressed);
+        };
+
+        element.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            setPressed(true);
+        });
+        element.addEventListener('pointerup', () => setPressed(false));
+        element.addEventListener('pointercancel', () => setPressed(false));
+        element.addEventListener('pointerleave', () => setPressed(false));
+    };
+
+    joystick.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        joystick.setPointerCapture(e.pointerId);
+        this.touchState.joystickPointerId = e.pointerId;
+        updateJoystick(e.clientX, e.clientY);
+    });
+    joystick.addEventListener('pointermove', (e) => {
+        if (this.touchState.joystickPointerId !== e.pointerId) return;
+        e.preventDefault();
+        updateJoystick(e.clientX, e.clientY);
+    });
+    joystick.addEventListener('pointerup', (e) => {
+        if (this.touchState.joystickPointerId !== e.pointerId) return;
+        resetJoystick();
+    });
+    joystick.addEventListener('pointercancel', (e) => {
+        if (this.touchState.joystickPointerId !== e.pointerId) return;
+        resetJoystick();
+    });
+
+    lookPad.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        lookPad.setPointerCapture(e.pointerId);
+        this.touchState.lookPointerId = e.pointerId;
+        this.touchState.lookLastX = e.clientX;
+        this.touchState.lookLastY = e.clientY;
+    });
+    lookPad.addEventListener('pointermove', (e) => {
+        if (this.touchState.lookPointerId !== e.pointerId || !this.isGameplayActive()) return;
+        e.preventDefault();
+        const dx = e.clientX - this.touchState.lookLastX;
+        const dy = e.clientY - this.touchState.lookLastY;
+        this.touchState.lookLastX = e.clientX;
+        this.touchState.lookLastY = e.clientY;
+        this.rotateCameraBy(dx, dy);
+    });
+    lookPad.addEventListener('pointerup', (e) => {
+        if (this.touchState.lookPointerId === e.pointerId) {
+            this.touchState.lookPointerId = null;
+        }
+    });
+    lookPad.addEventListener('pointercancel', (e) => {
+        if (this.touchState.lookPointerId === e.pointerId) {
+            this.touchState.lookPointerId = null;
+        }
+    });
+
+    bindHoldButton(jumpBtn, 'jump');
+    bindHoldButton(sprintBtn, 'sprint');
+
+    breakBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.performPrimaryAction();
+    });
+    placeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.performSecondaryAction();
+    });
+};
+
+Game.prototype.init = function () {
+    this.isMobile = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+    this.gameplayActive = false;
+    this.yaw = 0;
+    this.pitch = 0;
+    this.touchState = {
+        moveX: 0,
+        moveY: 0,
+        sprint: false,
+        jump: false,
+        joystickPointerId: null,
+        lookPointerId: null,
+        lookLastX: 0,
+        lookLastY: 0,
+    };
+
+    originalGameInit.call(this);
+
+    this.player.game = this;
+    this.renderer.domElement.style.touchAction = 'none';
+    this.camera.rotation.order = 'YXZ';
+    this.syncYawPitchFromCamera();
+    this.setupTouchControls();
+};
+
+Game.prototype.setupHotbar = function () {
+    originalGameSetupHotbar.call(this);
+    document.querySelectorAll('.hotbar-slot').forEach((slot, index) => {
+        slot.addEventListener('click', () => this.selectBlock(index));
+    });
+};
+
+Game.prototype.setupUI = function () {
+    originalGameSetupUI.call(this);
+
+    if (!this.isMobileMode()) return;
+
+    const blocker = document.getElementById('blocker');
+
+    blocker.addEventListener('click', () => {
+        if (!this.remoteName) return;
+        if (this.craftingOpen || this.equipmentOpen) return;
+        this.setGameplayActive(true);
+    });
+
+    this.controls.addEventListener('lock', () => {
+        this.syncYawPitchFromCamera();
+    });
+};
+
+Game.prototype.openCrafting = function () {
+    if (!this.isMobileMode()) {
+        originalGameOpenCrafting.call(this);
+        return;
+    }
+
+    this.craftingOpen = true;
+    this.setGameplayActive(false);
+    document.getElementById('crafting-overlay').classList.add('visible');
+    this.craftingGrid = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    this.updateCraftingDisplay();
+};
+
+Game.prototype.closeCrafting = function () {
+    if (!this.isMobileMode()) {
+        originalGameCloseCrafting.call(this);
+        return;
+    }
+
+    this.craftingOpen = false;
+    document.getElementById('crafting-overlay').classList.remove('visible');
+    setTimeout(() => {
+        if (!this.craftingOpen && !this.equipmentOpen) {
+            this.setGameplayActive(true);
+        }
+    }, 100);
+};
+
+Game.prototype.openEquipment = function () {
+    if (!this.isMobileMode()) {
+        originalGameOpenEquipment.call(this);
+        return;
+    }
+
+    this.equipmentOpen = true;
+    this.setGameplayActive(false);
+    document.getElementById('equipment-overlay').classList.add('visible');
+    this.updateEquipmentDisplay();
+};
+
+Game.prototype.closeEquipment = function () {
+    if (!this.isMobileMode()) {
+        originalGameCloseEquipment.call(this);
+        return;
+    }
+
+    this.equipmentOpen = false;
+    document.getElementById('equipment-overlay').classList.remove('visible');
+    setTimeout(() => {
+        if (!this.craftingOpen && !this.equipmentOpen) {
+            this.setGameplayActive(true);
+        }
+    }, 100);
+};
+
+Game.prototype.animate = function () {
+    requestAnimationFrame(() => this.animate());
+
+    const dt = this.clock.getDelta();
+
+    this.player.setTouchInput(this.touchState);
+    this.controls.mobileActive = this.isMobileMode() && this.gameplayActive;
+    this.player.update(dt, this.controls);
+    this.multiplayer.update(dt);
+
+    if (this.meshDirty) {
+        this.world.buildMesh(this.scene);
+        this.meshDirty = false;
+    }
+
+    if (this.isGameplayActive()) {
+        this.updateHighlight();
+    }
+
+    const pos = this.player.position;
+    const blockName = BLOCK_NAMES[PLACEABLE_BLOCKS[this.selectedBlockIdx]];
+    const debug = document.getElementById('debug-info');
+    const stats = this.player.getStats();
+    const equipLine = (stats.attack || stats.defense || stats.speedBonus)
+        ? `<br>⚔${stats.attack} 🛡${stats.defense} 💨+${stats.speedBonus}%` : '';
+    debug.innerHTML =
+        `XYZ: ${pos.x.toFixed(1)} / ${pos.y.toFixed(1)} / ${pos.z.toFixed(1)}<br>` +
+        `FPS: ${(1 / Math.max(dt, 0.001)).toFixed(0)}<br>` +
+        `手持: ${blockName}` + equipLine;
+
+    this.renderer.render(this.scene, this.camera);
+};
+
 new Game();
-
-
-
